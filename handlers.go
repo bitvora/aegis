@@ -1,0 +1,179 @@
+package main
+
+import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"os"
+	"strconv"
+	"text/template"
+	"time"
+
+	"github.com/bitvora/go-bitvora"
+)
+
+type WebhookPayload struct {
+	Event string `json:"event"`
+	Data  struct {
+		AmountSats         int       `json:"amount_sats"`
+		ChainTxID          *string   `json:"chain_tx_id"`
+		CreatedAt          time.Time `json:"created_at"`
+		FeeSats            float64   `json:"fee_sats"`
+		ID                 string    `json:"id"`
+		LightningInvoiceID string    `json:"lightning_invoice_id"`
+		Metadata           *string   `json:"metadata"`
+		NetworkType        string    `json:"network_type"`
+		RailType           string    `json:"rail_type"`
+		Recipient          string    `json:"recipient"`
+		Status             string    `json:"status"`
+		UpdatedAt          time.Time `json:"updated_at"`
+	} `json:"data"`
+}
+
+type Metadata struct {
+	Npub string `json:"npub"`
+}
+
+type Response struct {
+	Status  int         `json:"status"`
+	Message string      `json:"message"`
+	Data    interface{} `json:"data,omitempty"`
+}
+
+type PageData struct {
+	Header      string
+	Description string
+	Price       string
+}
+
+func JSONResponse(w http.ResponseWriter, status int, message string, data interface{}) {
+	response := Response{
+		Status:  status,
+		Message: message,
+		Data:    data,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func handleGenerateInvoice(w http.ResponseWriter, r *http.Request) {
+	bitvoraApiKey := os.Getenv("BITVORA_API_KEY")
+	pricePerYearStr := os.Getenv("PRICE_PER_YEAR")
+	pricePerYearFloat, err := strconv.ParseFloat(pricePerYearStr, 64)
+	if err != nil {
+		JSONResponse(w, http.StatusBadRequest, "Invalid price per year", nil)
+		return
+	}
+
+	npub := r.FormValue("npub")
+
+	metadata := map[string]string{
+		"npub": npub,
+	}
+
+	bitvoraClient := bitvora.NewBitvoraClient(bitvora.Mainnet, bitvoraApiKey)
+	invoice, err := bitvoraClient.CreateLightningInvoice(pricePerYearFloat, string(bitvora.SATS), "1 year subscription", 3600, metadata)
+	if err != nil {
+		JSONResponse(w, http.StatusInternalServerError, "Error creating invoice", nil)
+		return
+	}
+
+	var response struct {
+		Invoice string `json:"invoice"`
+	}
+
+	response.Invoice = invoice.Data.PaymentRequest
+
+	JSONResponse(w, http.StatusOK, "Invoice generated", response)
+	return
+}
+
+func handleHomePage(w http.ResponseWriter, r *http.Request) {
+	// Define the variables to pass to the template
+	data := PageData{
+		Header:      os.Getenv("RELAY_NAME"),
+		Description: os.Getenv("RELAY_DESCRIPTION"),
+		Price:       os.Getenv("PRICE_PER_YEAR"),
+	}
+
+	// Parse the template file
+	tmpl, err := template.ParseFiles("static/index.html")
+	if err != nil {
+		http.Error(w, "Unable to load template", http.StatusInternalServerError)
+		return
+	}
+
+	// Render the template with the provided data
+	err = tmpl.Execute(w, data)
+	if err != nil {
+		http.Error(w, "Unable to render template", http.StatusInternalServerError)
+	}
+}
+
+func handleBitvoraWebhook(w http.ResponseWriter, r *http.Request) {
+	secret := os.Getenv("BITVORA_WEBHOOK_SECRET")
+	signature := r.Header.Get("bitvora-signature")
+
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Error reading request body", http.StatusBadRequest)
+		return
+	}
+	payload := string(bodyBytes)
+
+	if validateWebhookSignature(payload, signature, secret) {
+		fmt.Println("Valid signature")
+		// Process webhook
+		w.WriteHeader(http.StatusOK)
+
+		var webhookPayload WebhookPayload
+		if err := json.Unmarshal(bodyBytes, &webhookPayload); err != nil {
+			fmt.Println("Error parsing webhook payload:", err)
+			http.Error(w, "Error parsing webhook payload", http.StatusBadRequest)
+			return
+		}
+
+		if webhookPayload.Event == "deposit.lightning.completed" {
+
+			log.Println("Received deposit.lightning.completed event", webhookPayload.Data.ID)
+
+			var metadata Metadata
+			if webhookPayload.Data.Metadata != nil {
+				if err := json.Unmarshal([]byte(*webhookPayload.Data.Metadata), &metadata); err != nil {
+					fmt.Println("Error parsing metadata:", err)
+					http.Error(w, "Error parsing metadata", http.StatusBadRequest)
+					return
+				}
+
+				if metadata.Npub != "" {
+					npub := metadata.Npub
+					addPubkeyToWhitelist("whitelist.json", npub)
+				} else {
+					fmt.Println("No npub in metadata")
+					return
+				}
+			}
+		}
+
+	} else {
+		fmt.Println("Invalid signature")
+		http.Error(w, "Invalid signature", http.StatusUnauthorized)
+	}
+}
+
+func validateWebhookSignature(payload, signature, secret string) bool {
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write([]byte(payload))
+	expectedSignature := hex.EncodeToString(h.Sum(nil))
+	return expectedSignature == signature
+}

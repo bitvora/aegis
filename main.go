@@ -12,6 +12,7 @@ import (
 	"github.com/fiatjaf/khatru"
 	"github.com/joho/godotenv"
 	"github.com/nbd-wtf/go-nostr"
+	"github.com/nbd-wtf/go-nostr/nip19"
 )
 
 type Whitelist struct {
@@ -38,6 +39,42 @@ func loadWhitelist(filename string) (*Whitelist, error) {
 	return &whitelist, nil
 }
 
+func nPubToPubkey(nPub string) string {
+	_, v, err := nip19.Decode(nPub)
+	if err != nil {
+		panic(err)
+	}
+	return v.(string)
+}
+
+func addPubkeyToWhitelist(filename, npub string) error {
+	whitelist, err := loadWhitelist(filename)
+	if err != nil {
+		return fmt.Errorf("could not load whitelist: %w", err)
+	}
+
+	pubkey := nPubToPubkey(npub)
+
+	whitelist.Pubkeys = append(whitelist.Pubkeys, pubkey)
+
+	file, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("could not open file for writing: %w", err)
+	}
+	defer file.Close()
+
+	bytes, err := json.Marshal(whitelist)
+	if err != nil {
+		return fmt.Errorf("could not marshal JSON: %w", err)
+	}
+
+	if _, err := file.Write(bytes); err != nil {
+		return fmt.Errorf("could not write to file: %w", err)
+	}
+
+	return nil
+}
+
 func main() {
 	godotenv.Load(".env")
 
@@ -57,6 +94,7 @@ func main() {
 	relay.Info.Description = os.Getenv("RELAY_DESCRIPTION")
 	relay.Info.Software = "https://github.com/bitvora/sw2"
 	relay.Info.Version = "0.1.0"
+	relay.Info.SupportedNIPs = []any{1, 11, 42, 70, 86}
 
 	whitelist, err := loadWhitelist("whitelist.json")
 	if err != nil {
@@ -88,6 +126,9 @@ func main() {
 	relay.CountEvents = append(relay.CountEvents, db.CountEvents)
 	relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent)
 
-	fmt.Println("running on :3334")
-	http.ListenAndServe(":3334", relay)
+	mux := relay.Router()
+	mux.HandleFunc("/bitvora_webhook", handleBitvoraWebhook)
+	mux.HandleFunc("/generate_invoice", handleGenerateInvoice)
+	mux.HandleFunc("/", handleHomePage)
+	http.ListenAndServe(":3334", mux)
 }

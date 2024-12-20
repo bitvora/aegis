@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ .Header }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body
+    class="bg-gray-900 text-white font-sans flex items-center justify-center min-h-screen p-6"
+  >
+    <div class="w-full max-w-lg text-center">
+      <h1 class="text-4xl font-bold mb-4 text-purple-500">{{ .Header }}</h1>
+      <h2 class="text-xl font-medium mb-8">{{ .Description }}</h2>
+
+      <form id="whitelistForm" class="space-y-6">
+        <div class="flex flex-col">
+          <label for="npub" class="text-lg mb-2">Whitelist npub</label>
+          <input
+            id="npub"
+            type="text"
+            placeholder="Enter npub"
+            class="p-4 rounded-lg text-black text-lg"
+            required
+          />
+        </div>
+
+        <div>
+          <p class="text-2xl font-semibold mb-4 text-purple-400">
+            {{ .Price }} sats / year
+          </p>
+        </div>
+
+        <button
+          type="submit"
+          class="bg-purple-600 hover:bg-purple-700 text-white py-3 px-6 rounded-lg text-lg w-full"
+        >
+          Pay Now
+        </button>
+      </form>
+
+      <div id="invoiceContainer" class="mt-8 hidden">
+        <h3 class="text-2xl font-bold mb-4">Invoice</h3>
+        <img id="qrCode" src="" alt="Invoice QR Code" class="mx-auto" />
+      </div>
+    </div>
+
+    <script>
+      document
+        .getElementById("whitelistForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          const npub = document.getElementById("npub").value;
+          try {
+            const response = await fetch("/generate_invoice", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ npub }),
+            });
+
+            const result = await response.json();
+            if (result.status === 200 && result.data && result.data.invoice) {
+              const invoice = result.data.invoice;
+
+              const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+                invoice
+              )}`;
+              const qrCodeContainer =
+                document.getElementById("invoiceContainer");
+              const qrCodeImg = document.getElementById("qrCode");
+              qrCodeImg.src = qrCodeUrl;
+              qrCodeContainer.classList.remove("hidden");
+            } else {
+              alert(result.Message || "Failed to generate invoice.");
+              console.log(result);
+            }
+          } catch (error) {
+            console.error(error);
+            alert("An error occurred. Please try again.");
+          }
+        });
+    </script>
+  </body>
+</html>
