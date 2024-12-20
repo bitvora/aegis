@@ -94,7 +94,6 @@ func main() {
 	relay.Info.Description = os.Getenv("RELAY_DESCRIPTION")
 	relay.Info.Software = "https://github.com/bitvora/sw2"
 	relay.Info.Version = "0.1.0"
-	relay.Info.SupportedNIPs = []any{1, 11, 42, 70, 86}
 
 	whitelist, err := loadWhitelist("whitelist.json")
 	if err != nil {
