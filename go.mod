@@ -1,4 +1,4 @@
-module github.com/bitvora/sw2
+module github.com/bitvora/aegis
 
 go 1.23.1
 
