@@ -184,7 +184,7 @@ PREMIUM RELAY & BLOSSOM SERVER
 	})
 
 	log.Println("🚀 Server started on port", relayPort)
-	http.ListenAndServe("0.0.0.0:"+relayPort, mux)
+	http.ListenAndServe("0.0.0.0:"+relayPort, relay)
 
 }
 
