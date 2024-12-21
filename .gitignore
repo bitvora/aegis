@@ -1,3 +1,5 @@
 .env
-db/
+db/data.mdb
+db/lock.mdb
+db/subscriptions.db
 aegis
