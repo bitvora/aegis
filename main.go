@@ -94,6 +94,7 @@ PREMIUM RELAY & BLOSSOM SERVER
 	relayUrl := os.Getenv("RELAY_URL")
 	dbPath := os.Getenv("DB_PATH")
 	relayPort := os.Getenv("RELAY_PORT")
+	relay.ServiceURL = "wss://" + relayUrl
 
 	sqlDB, err = sql.Open("sqlite3", dbPath+"subscriptions.db")
 	if err != nil {
