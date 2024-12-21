@@ -26,7 +26,7 @@ type WebhookPayload struct {
 		FeeSats            float64   `json:"fee_sats"`
 		ID                 string    `json:"id"`
 		LightningInvoiceID string    `json:"lightning_invoice_id"`
-		Metadata           *string   `json:"metadata"`
+		Metadata           *Metadata `json:"metadata"`
 		NetworkType        string    `json:"network_type"`
 		RailType           string    `json:"rail_type"`
 		Recipient          string    `json:"recipient"`
@@ -159,12 +159,7 @@ func handleBitvoraWebhook(w http.ResponseWriter, r *http.Request) {
 
 			var metadata Metadata
 			if webhookPayload.Data.Metadata != nil {
-				if err := json.Unmarshal([]byte(*webhookPayload.Data.Metadata), &metadata); err != nil {
-					fmt.Println("Error parsing metadata:", err)
-					http.Error(w, "Error parsing metadata", http.StatusBadRequest)
-					return
-				}
-
+				metadata = *webhookPayload.Data.Metadata
 				if metadata.Npub != "" {
 					npub := metadata.Npub
 					setPaidSubscription(npub)
