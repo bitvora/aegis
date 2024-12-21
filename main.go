@@ -56,7 +56,8 @@ func loadWhitelist() (*Whitelist, error) {
 func nPubToPubkey(nPub string) string {
 	_, v, err := nip19.Decode(nPub)
 	if err != nil {
-		panic(err)
+		log.Println("failed to decode npub:", err)
+		return ""
 	}
 	return v.(string)
 }
@@ -149,6 +150,7 @@ PREMIUM RELAY & BLOSSOM SERVER
 	mux := relay.Router()
 	mux.HandleFunc("/bitvora_webhook", handleBitvoraWebhook)
 	mux.HandleFunc("/generate_invoice", handleGenerateInvoice)
+	mux.HandleFunc("/poll_payment", handlePollPayment)
 	mux.HandleFunc("/", handleHomePage)
 
 	bl := blossom.New(relay, "https://"+relayUrl)

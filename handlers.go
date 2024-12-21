@@ -75,7 +75,17 @@ func handleGenerateInvoice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	npub := r.FormValue("npub")
+	// Parse the JSON body
+	var requestData struct {
+		Npub string `json:"npub"`
+	}
+	err = json.NewDecoder(r.Body).Decode(&requestData)
+	if err != nil || requestData.Npub == "" {
+		JSONResponse(w, http.StatusBadRequest, "Missing or invalid npub", nil)
+		return
+	}
+
+	npub := requestData.Npub
 
 	metadata := map[string]string{
 		"npub": npub,
@@ -169,6 +179,33 @@ func handleBitvoraWebhook(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("Invalid signature")
 		http.Error(w, "Invalid signature", http.StatusUnauthorized)
 	}
+}
+
+func handlePollPayment(w http.ResponseWriter, r *http.Request) {
+	// Ensure the request method is POST
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse the JSON body
+	var requestData struct {
+		Npub string `json:"npub"`
+	}
+	err := json.NewDecoder(r.Body).Decode(&requestData)
+	if err != nil || requestData.Npub == "" {
+		JSONResponse(w, http.StatusBadRequest, "Missing or invalid npub", nil)
+		return
+	}
+
+	// Process the payment polling
+	active := pollPayment(requestData.Npub)
+	var response struct {
+		Active bool `json:"active"`
+	}
+
+	response.Active = active
+	JSONResponse(w, http.StatusOK, "Payment status", response)
 }
 
 func validateWebhookSignature(payload, signature, secret string) bool {

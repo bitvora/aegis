@@ -35,3 +35,19 @@ func setPaidSubscription(npub string) error {
 
 	return nil
 }
+
+func pollPayment(npub string) bool {
+	pubkey := nPubToPubkey(npub)
+	query := `
+	SELECT active FROM subscriptions
+	WHERE pubkey = ?;
+	`
+
+	var active bool
+	err := sqlDB.QueryRow(query, pubkey).Scan(&active)
+	if err != nil {
+		return false
+	}
+
+	return active
+}

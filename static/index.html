@@ -19,6 +19,7 @@
           <input
             id="npub"
             type="text"
+            name="npub"
             placeholder="Enter npub"
             class="p-4 rounded-lg text-black text-lg"
             required
@@ -41,7 +42,21 @@
 
       <div id="invoiceContainer" class="mt-8 hidden">
         <h3 class="text-2xl font-bold mb-4">Invoice</h3>
-        <img id="qrCode" src="" alt="Invoice QR Code" class="mx-auto" />
+        <img id="qrCode" src="" alt="Invoice QR Code" class="mx-auto mb-4" />
+        <div class="flex flex-col items-center space-y-4">
+          <input
+            id="invoiceText"
+            type="text"
+            readonly
+            class="p-4 rounded-lg text-black text-lg w-full text-center"
+          />
+          <button
+            id="copyInvoice"
+            class="bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg text-lg"
+          >
+            Copy to Clipboard
+          </button>
+        </div>
       </div>
     </div>
 
@@ -72,16 +87,61 @@
                 document.getElementById("invoiceContainer");
               const qrCodeImg = document.getElementById("qrCode");
               qrCodeImg.src = qrCodeUrl;
+              document.getElementById("invoiceText").value = invoice;
               qrCodeContainer.classList.remove("hidden");
+
+              // Start polling for payment status
+              startPolling(npub);
             } else {
-              alert(result.Message || "Failed to generate invoice.");
-              console.log(result);
+              alert(result.message || "Failed to generate invoice.");
             }
           } catch (error) {
             console.error(error);
             alert("An error occurred. Please try again.");
           }
         });
+
+      document.getElementById("copyInvoice").addEventListener("click", () => {
+        const invoiceText = document.getElementById("invoiceText");
+        invoiceText.select();
+        invoiceText.setSelectionRange(0, 99999); // For mobile devices
+
+        navigator.clipboard
+          .writeText(invoiceText.value)
+          .then(() => {
+            alert("Invoice copied to clipboard!");
+          })
+          .catch((err) => {
+            console.error("Failed to copy: ", err);
+          });
+      });
+
+      async function startPolling(npub) {
+        console.log("Started polling for payment status...");
+        const pollInterval = setInterval(async () => {
+          try {
+            const response = await fetch("/poll_payment", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ npub }),
+            });
+
+            const result = await response.json();
+            console.log("Poll response:", result);
+
+            if (result.status === 200 && result.data.active) {
+              clearInterval(pollInterval);
+              alert(
+                "Payment received! Thank you, your npub now has access to the relay and blossom server"
+              );
+            }
+          } catch (error) {
+            console.error("Polling error:", error);
+          }
+        }, 3000);
+      }
     </script>
   </body>
 </html>
