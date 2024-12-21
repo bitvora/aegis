@@ -11,7 +11,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/fiatjaf/eventstore/badger"
+	"github.com/fiatjaf/eventstore/lmdb"
 	"github.com/fiatjaf/khatru"
 	"github.com/fiatjaf/khatru/blossom"
 	"github.com/joho/godotenv"
@@ -106,7 +106,7 @@ PREMIUM RELAY & BLOSSOM SERVER
 		log.Fatalf("failed to run database migrations: %v", err)
 	}
 
-	db := &badger.BadgerBackend{
+	db := &lmdb.LMDBBackend{
 		Path: dbPath,
 	}
 
