@@ -4,7 +4,7 @@ go 1.23.1
 
 require (
 	github.com/bitvora/go-bitvora v0.1.4
-	github.com/fiatjaf/eventstore v0.14.2
+	github.com/fiatjaf/eventstore v0.14.3
 	github.com/fiatjaf/khatru v0.14.0
 	github.com/joho/godotenv v1.5.1
 	github.com/mattn/go-sqlite3 v1.14.24
