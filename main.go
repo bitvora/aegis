@@ -98,6 +98,14 @@ PREMIUM RELAY & BLOSSOM SERVER
 	relayPort := os.Getenv("RELAY_PORT")
 	relay.ServiceURL = "wss://" + relayUrl
 
+	db := &lmdb.LMDBBackend{
+		Path: dbPath,
+	}
+
+	if err := db.Init(); err != nil {
+		panic(err)
+	}
+
 	sqlDB, err = sql.Open("sqlite3", dbPath+"subscriptions.db")
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
@@ -106,14 +114,6 @@ PREMIUM RELAY & BLOSSOM SERVER
 
 	if err := migrateDB(sqlDB); err != nil {
 		log.Fatalf("failed to run database migrations: %v", err)
-	}
-
-	db := &lmdb.LMDBBackend{
-		Path: dbPath,
-	}
-
-	if err := db.Init(); err != nil {
-		panic(err)
 	}
 
 	fs = afero.NewOsFs()
