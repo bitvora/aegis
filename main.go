@@ -151,9 +151,9 @@ PREMIUM RELAY & BLOSSOM SERVER
 	go checkExpiredSubscriptions()
 
 	mux := relay.Router()
-	mux.HandleFunc("/bitvora_webhook", handleBitvoraWebhook)
-	mux.HandleFunc("/generate_invoice", handleGenerateInvoice)
-	mux.HandleFunc("/poll_payment", handlePollPayment)
+	mux.HandleFunc("POST /bitvora_webhook", handleBitvoraWebhook)
+	mux.HandleFunc("POST /generate_invoice", handleGenerateInvoice)
+	mux.HandleFunc("POST /poll_payment", handlePollPayment)
 	mux.HandleFunc("GET /", handleHomePage)
 
 	bl := blossom.New(relay, "https://"+relayUrl)
