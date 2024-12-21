@@ -120,7 +120,14 @@ sudo chmod -R 777 /path/to/db
 
 ### 7. Serving over nginx (optional)
 
-You can serve the relay over nginx by adding the following configuration to your nginx configuration file:
+install nginx:
+
+```bash
+sudo apt-get update
+sudo apt-get install nginx
+```
+
+You can serve the relay over nginx by adding the following configuration to your nginx configuration file located at `/etc/nginx/sites-available/default`:
 
 ```nginx
 server {
