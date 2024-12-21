@@ -155,6 +155,7 @@ PREMIUM RELAY & BLOSSOM SERVER
 	mux.HandleFunc("/generate_invoice", handleGenerateInvoice)
 	mux.HandleFunc("/poll_payment", handlePollPayment)
 	mux.HandleFunc("/", handleHomePage)
+	mux.Handle("/relay", relay)
 
 	bl := blossom.New(relay, "https://"+relayUrl)
 	bl.Store = blossom.EventStoreBlobIndexWrapper{Store: lmdb, ServiceURL: bl.ServiceURL}
@@ -186,7 +187,7 @@ PREMIUM RELAY & BLOSSOM SERVER
 	})
 
 	log.Println("🚀 Server started on port", relayPort)
-	http.ListenAndServe("0.0.0.0:"+relayPort, relay)
+	http.ListenAndServe("0.0.0.0:"+relayPort, mux)
 
 }
 
