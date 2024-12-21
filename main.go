@@ -28,6 +28,7 @@ type Whitelist struct {
 var sqlDB *sql.DB
 var err error
 var fs afero.Fs
+var whitelist *Whitelist
 
 func loadWhitelist() (*Whitelist, error) {
 	query := `SELECT pubkey FROM subscriptions WHERE active = true;`
@@ -50,7 +51,8 @@ func loadWhitelist() (*Whitelist, error) {
 		return nil, fmt.Errorf("error iterating over rows: %w", err)
 	}
 
-	return &Whitelist{Pubkeys: pubkeys}, nil
+	whitelist = &Whitelist{Pubkeys: pubkeys}
+	return whitelist, nil
 }
 
 func nPubToPubkey(nPub string) string {
@@ -121,7 +123,7 @@ PREMIUM RELAY & BLOSSOM SERVER
 		panic(err)
 	}
 
-	whitelist, err := loadWhitelist()
+	whitelist, err = loadWhitelist()
 	if err != nil {
 		fmt.Println("Error loading config:", err)
 		return
