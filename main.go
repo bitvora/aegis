@@ -106,7 +106,7 @@ PREMIUM RELAY & BLOSSOM SERVER
 		log.Fatalf("failed to run database migrations: %v", err)
 	}
 
-	db := lmdb.LMDBBackend{
+	db := &lmdb.LMDBBackend{
 		Path: dbPath,
 	}
 
@@ -159,7 +159,7 @@ PREMIUM RELAY & BLOSSOM SERVER
 	mux.HandleFunc("/", handleHomePage)
 
 	bl := blossom.New(relay, "https://"+relayUrl)
-	bl.Store = blossom.EventStoreBlobIndexWrapper{Store: &db, ServiceURL: bl.ServiceURL}
+	bl.Store = blossom.EventStoreBlobIndexWrapper{Store: db, ServiceURL: bl.ServiceURL}
 	bl.StoreBlob = append(bl.StoreBlob, func(ctx context.Context, sha256 string, body []byte) error {
 
 		file, err := fs.Create(blossomPath + sha256)
