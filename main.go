@@ -96,9 +96,9 @@ PREMIUM RELAY & BLOSSOM SERVER
 	relayUrl := os.Getenv("RELAY_URL")
 	dbPath := os.Getenv("DB_PATH")
 	relayPort := os.Getenv("RELAY_PORT")
-	relay.ServiceURL = "wss://" + relayUrl
+	relay.ServiceURL = "https://" + relayUrl
 
-	lmdb := lmdb.LMDBBackend{
+	lmdb := &lmdb.LMDBBackend{
 		Path: dbPath,
 	}
 
@@ -157,7 +157,7 @@ PREMIUM RELAY & BLOSSOM SERVER
 	mux.HandleFunc("/", handleHomePage)
 
 	bl := blossom.New(relay, "https://"+relayUrl)
-	bl.Store = blossom.EventStoreBlobIndexWrapper{Store: &lmdb, ServiceURL: bl.ServiceURL}
+	bl.Store = blossom.EventStoreBlobIndexWrapper{Store: lmdb, ServiceURL: bl.ServiceURL}
 	bl.StoreBlob = append(bl.StoreBlob, func(ctx context.Context, sha256 string, body []byte) error {
 
 		file, err := fs.Create(blossomPath + sha256)
@@ -186,7 +186,7 @@ PREMIUM RELAY & BLOSSOM SERVER
 	})
 
 	log.Println("🚀 Server started on port", relayPort)
-	http.ListenAndServe("0.0.0.0:"+relayPort, relay)
+	http.ListenAndServe("0.0.0.0:"+relayPort, mux)
 
 }
 
