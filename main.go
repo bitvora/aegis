@@ -98,11 +98,11 @@ PREMIUM RELAY & BLOSSOM SERVER
 	relayPort := os.Getenv("RELAY_PORT")
 	relay.ServiceURL = "wss://" + relayUrl
 
-	db := &lmdb.LMDBBackend{
+	lmdb := lmdb.LMDBBackend{
 		Path: dbPath,
 	}
 
-	if err := db.Init(); err != nil {
+	if err := lmdb.Init(); err != nil {
 		panic(err)
 	}
 
@@ -118,10 +118,6 @@ PREMIUM RELAY & BLOSSOM SERVER
 
 	fs = afero.NewOsFs()
 	fs.MkdirAll(blossomPath, 0755)
-
-	if err := db.Init(); err != nil {
-		panic(err)
-	}
 
 	whitelist, err = loadWhitelist()
 	if err != nil {
@@ -147,10 +143,10 @@ PREMIUM RELAY & BLOSSOM SERVER
 		return true, "pubkey not whitelisted"
 	})
 
-	relay.StoreEvent = append(relay.StoreEvent, db.SaveEvent)
-	relay.QueryEvents = append(relay.QueryEvents, db.QueryEvents)
-	relay.CountEvents = append(relay.CountEvents, db.CountEvents)
-	relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent)
+	relay.StoreEvent = append(relay.StoreEvent, lmdb.SaveEvent)
+	relay.QueryEvents = append(relay.QueryEvents, lmdb.QueryEvents)
+	relay.CountEvents = append(relay.CountEvents, lmdb.CountEvents)
+	relay.DeleteEvent = append(relay.DeleteEvent, lmdb.DeleteEvent)
 
 	go checkExpiredSubscriptions()
 
@@ -161,7 +157,7 @@ PREMIUM RELAY & BLOSSOM SERVER
 	mux.HandleFunc("/", handleHomePage)
 
 	bl := blossom.New(relay, "https://"+relayUrl)
-	bl.Store = blossom.EventStoreBlobIndexWrapper{Store: db, ServiceURL: bl.ServiceURL}
+	bl.Store = blossom.EventStoreBlobIndexWrapper{Store: &lmdb, ServiceURL: bl.ServiceURL}
 	bl.StoreBlob = append(bl.StoreBlob, func(ctx context.Context, sha256 string, body []byte) error {
 
 		file, err := fs.Create(blossomPath + sha256)
