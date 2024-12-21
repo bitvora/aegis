@@ -1,6 +1,6 @@
-# Simple With Whitelisting (sw2)
+# Aegis Relay
 
-Simple With Whitelisting (sw2) is a nostr relay that only accepts notes from whitelisted pubkeys.
+Aegis Relay is a premium relay and blossom service that allows relay operators to earn income by providing relay services to the network.
 
 It's built on the [Khatru](https://khatru.nostr.technology) framework.
 
@@ -11,13 +11,13 @@ It's built on the [Khatru](https://khatru.nostr.technology) framework.
 
 ## Setup Instructions
 
-Follow these steps to get the sw2 Relay running on your local machine:
+Follow these steps to get the Aegis Relay running on your local machine:
 
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/bitvora/sw2.git
-cd sw2
+git clone https://github.com/bitvora/aegis.git
+cd aegis
 ```
 
 ### 2. Copy `.env.example` to `.env`
@@ -33,26 +33,30 @@ cp .env.example .env
 Open the `.env` file and set the necessary environment variables. Example variables include:
 
 ```bash
-RELAY_NAME="utxo's bot relay"
+# System Configuration
+BLOSSOM_PATH="/home/utxo/aegis_blossom"
+DB_PATH="db/"
+
+# Relay Metadata
+RELAY_NAME="utxo's aegis relay"
 RELAY_PUBKEY="e2ccf7cf20403f3f2a4a55b328f0de3be38558a7d5f33632fdaaefc726c1c8eb"
-RELAY_DESCRIPTION="all my bots will use this relay"
-RELAY_URL="wss://bots.utxo.one"
+RELAY_DESCRIPTION="premium relay and blossom server"
+RELAY_URL="aegis.utxo.one"
 RELAY_ICON="https://pfp.nostr.build/d8fb3b6100a0eb9e652bbc34a0c043b7f225dc74e4ed6d733d0e059f9bd444d4.jpg"
 RELAY_CONTACT="https://utxo.one"
+RELAY_PORT="8080"
+
+# Bitvora & Payment Configuration
+BITVORA_API_KEY=""
+BITVORA_WEBHOOK_SECRET=""
+PRICE_PER_YEAR="100"
 ```
 
-### 4. Whitelist Pubkeys
+### 4. Setup Bitvora Payments
 
-Open the `whitelist.json` file and add pubkeys to the array
-
-```json
-{
-  "pubkeys": [
-    "1c6cb22996baabe921bcd45c8b6213b2dab096f88e4ba5678d43d195a1868551",
-    "9c5d0b120f01b75292d2a2bc32972bf918c8dd8927eaa633d3f62e181a292b27"
-  ]
-}
-```
+1. Create an account on [Bitvora](https://bitvora.com).
+2. Create an API Key with permissions `Create lightning invoice`
+3. Setup a webhook with the following URL: `https://yourdomain.com/bitvora_webhook` with `lightning.deposit.completed` event
 
 ### 5. Build the project
 
@@ -69,19 +73,19 @@ To have the relay run as a service, create a systemd unit file.
 1. Create the file:
 
 ```bash
-sudo nano /etc/systemd/system/sw2.service
+sudo nano /etc/systemd/system/aegis.service
 ```
 
 2. Add the following contents:
 
 ```ini
 [Unit]
-Description=sw2 Relay Service
+Description=aegis Relay Service
 After=network.target
 
 [Service]
-ExecStart=/home/ubuntu/sw2/sw2
-WorkingDirectory=/home/ubuntu/sw2
+ExecStart=/home/ubuntu/aegis/aegis
+WorkingDirectory=/home/ubuntu/aegis
 Restart=always
 
 [Install]
@@ -97,13 +101,13 @@ sudo systemctl daemon-reload
 4. Start the service:
 
 ```bash
-sudo systemctl start sw2
+sudo systemctl start aegis
 ```
 
 5. (Optional) Enable the service to start on boot:
 
 ```bash
-sudo systemctl enable sw2
+sudo systemctl enable aegis
 ```
 
 #### Permission Issues on Some Systems
@@ -124,7 +128,7 @@ server {
     server_name yourdomain.com;
 
     location / {
-        proxy_pass http://localhost:3334;
+        proxy_pass http://localhost:8080;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -163,4 +167,4 @@ Follow the instructions to generate the certificate.
 
 ### 8. Access the relay
 
-Once everything is set up, the relay will be running on `localhost:3334` or your domain name if you set up nginx.
+Once everything is set up, the relay will be running on `localhost:8080` or your domain name if you set up nginx.

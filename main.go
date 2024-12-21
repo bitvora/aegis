@@ -1,42 +1,56 @@
 package main
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
+	"database/sql"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/fiatjaf/eventstore/lmdb"
 	"github.com/fiatjaf/khatru"
+	"github.com/fiatjaf/khatru/blossom"
 	"github.com/joho/godotenv"
+	_ "github.com/mattn/go-sqlite3" // SQLite driver
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip19"
+	"github.com/spf13/afero"
 )
 
 type Whitelist struct {
 	Pubkeys []string `json:"pubkeys"`
 }
 
-func loadWhitelist(filename string) (*Whitelist, error) {
-	file, err := os.Open(filename)
+var sqlDB *sql.DB
+var err error
+var fs afero.Fs
+
+func loadWhitelist() (*Whitelist, error) {
+	query := `SELECT pubkey FROM subscriptions WHERE active = true;`
+	rows, err := sqlDB.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("could not open file: %w", err)
+		return nil, fmt.Errorf("failed to query subscriptions: %w", err)
 	}
-	defer file.Close()
+	defer rows.Close()
 
-	bytes, err := io.ReadAll(file)
-	if err != nil {
-		return nil, fmt.Errorf("could not read file: %w", err)
+	var pubkeys []string
+	for rows.Next() {
+		var pubkey string
+		if err := rows.Scan(&pubkey); err != nil {
+			return nil, fmt.Errorf("failed to scan row: %w", err)
+		}
+		pubkeys = append(pubkeys, pubkey)
 	}
 
-	var whitelist Whitelist
-	if err := json.Unmarshal(bytes, &whitelist); err != nil {
-		return nil, fmt.Errorf("could not parse JSON: %w", err)
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over rows: %w", err)
 	}
 
-	return &whitelist, nil
+	return &Whitelist{Pubkeys: pubkeys}, nil
 }
 
 func nPubToPubkey(nPub string) string {
@@ -47,45 +61,26 @@ func nPubToPubkey(nPub string) string {
 	return v.(string)
 }
 
-func addPubkeyToWhitelist(filename, npub string) error {
-	whitelist, err := loadWhitelist(filename)
-	if err != nil {
-		return fmt.Errorf("could not load whitelist: %w", err)
-	}
-
-	pubkey := nPubToPubkey(npub)
-
-	whitelist.Pubkeys = append(whitelist.Pubkeys, pubkey)
-
-	file, err := os.Create(filename)
-	if err != nil {
-		return fmt.Errorf("could not open file for writing: %w", err)
-	}
-	defer file.Close()
-
-	bytes, err := json.Marshal(whitelist)
-	if err != nil {
-		return fmt.Errorf("could not marshal JSON: %w", err)
-	}
-
-	if _, err := file.Write(bytes); err != nil {
-		return fmt.Errorf("could not write to file: %w", err)
-	}
-
-	return nil
-}
-
 func main() {
 	godotenv.Load(".env")
 
-	relay := khatru.NewRelay()
-	db := lmdb.LMDBBackend{
-		Path: "db/",
-	}
+	var art = `
+ █████╗ ███████╗ ██████╗ ██╗███████╗
+██╔══██╗██╔════╝██╔════╝ ██║██╔════╝
+███████║█████╗  ██║  ███╗██║███████╗
+██╔══██║██╔══╝  ██║   ██║██║╚════██║
+██║  ██║███████╗╚██████╔╝██║███████║
+╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝╚══════╝
+PREMIUM RELAY & BLOSSOM SERVER
+	`
 
-	if err := db.Init(); err != nil {
-		panic(err)
-	}
+	nostr.InfoLogger = log.New(io.Discard, "", 0)
+	green := "\033[32m"
+	reset := "\033[0m"
+	fmt.Println(green + art + reset)
+	log.Println("🚀 Aegis is booting up")
+
+	relay := khatru.NewRelay()
 
 	relay.Info.Name = os.Getenv("RELAY_NAME")
 	relay.Info.PubKey = os.Getenv("RELAY_PUBKEY")
@@ -94,14 +89,38 @@ func main() {
 	relay.Info.Description = os.Getenv("RELAY_DESCRIPTION")
 	relay.Info.Software = "https://github.com/bitvora/sw2"
 	relay.Info.Version = "0.1.0"
+	blossomPath := os.Getenv("BLOSSOM_PATH")
+	relayUrl := os.Getenv("RELAY_URL")
+	dbPath := os.Getenv("DB_PATH")
+	relayPort := os.Getenv("RELAY_PORT")
 
-	whitelist, err := loadWhitelist("whitelist.json")
+	sqlDB, err = sql.Open("sqlite3", dbPath+"subscriptions.db")
+	if err != nil {
+		log.Fatalf("failed to connect to database: %v", err)
+	}
+	defer sqlDB.Close()
+
+	if err := migrateDB(sqlDB); err != nil {
+		log.Fatalf("failed to run database migrations: %v", err)
+	}
+
+	db := lmdb.LMDBBackend{
+		Path: dbPath,
+	}
+
+	fs = afero.NewOsFs()
+	fs.MkdirAll(blossomPath, 0755)
+
+	if err := db.Init(); err != nil {
+		panic(err)
+	}
+
+	whitelist, err := loadWhitelist()
 	if err != nil {
 		fmt.Println("Error loading config:", err)
 		return
 	}
 
-	fmt.Println("Whitelisted pubkeys:")
 	for _, pubkey := range whitelist.Pubkeys {
 		fmt.Println(pubkey)
 	}
@@ -125,9 +144,62 @@ func main() {
 	relay.CountEvents = append(relay.CountEvents, db.CountEvents)
 	relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent)
 
+	go checkExpiredSubscriptions()
+
 	mux := relay.Router()
 	mux.HandleFunc("/bitvora_webhook", handleBitvoraWebhook)
 	mux.HandleFunc("/generate_invoice", handleGenerateInvoice)
 	mux.HandleFunc("/", handleHomePage)
-	http.ListenAndServe(":3334", mux)
+
+	bl := blossom.New(relay, "https://"+relayUrl)
+	bl.Store = blossom.EventStoreBlobIndexWrapper{Store: &db, ServiceURL: bl.ServiceURL}
+	bl.StoreBlob = append(bl.StoreBlob, func(ctx context.Context, sha256 string, body []byte) error {
+
+		file, err := fs.Create(blossomPath + sha256)
+		if err != nil {
+			return err
+		}
+		if _, err := io.Copy(file, bytes.NewReader(body)); err != nil {
+			return err
+		}
+		return nil
+	})
+	bl.LoadBlob = append(bl.LoadBlob, func(ctx context.Context, sha256 string) (io.ReadSeeker, error) {
+		return fs.Open(blossomPath + sha256)
+	})
+	bl.DeleteBlob = append(bl.DeleteBlob, func(ctx context.Context, sha256 string) error {
+		return fs.Remove(blossomPath + sha256)
+	})
+	bl.RejectUpload = append(bl.RejectUpload, func(ctx context.Context, event *nostr.Event, size int, ext string) (bool, string, int) {
+		for _, pubkey := range whitelist.Pubkeys {
+			if pubkey == event.PubKey {
+				return false, ext, size
+			}
+		}
+
+		return true, "you must have an active subscription to upload to this server", 403
+	})
+
+	log.Println("🚀 Server started on port", relayPort)
+	http.ListenAndServe(":"+relayPort, mux)
+
+}
+
+func checkExpiredSubscriptions() {
+	ticker := time.NewTicker(1 * time.Hour)
+	go func() {
+		for range ticker.C {
+			query := `
+			UPDATE subscriptions
+			SET active = false
+			WHERE expires_at IS NOT NULL AND expires_at < CURRENT_TIMESTAMP;
+			`
+			_, err := sqlDB.Exec(query)
+			if err != nil {
+				log.Printf("failed to update expired subscriptions: %v", err)
+			} else {
+				log.Println("Checked and updated expired subscriptions")
+			}
+		}
+	}()
 }

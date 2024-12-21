@@ -93,9 +93,9 @@ func handleGenerateInvoice(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.Invoice = invoice.Data.PaymentRequest
+	createSubscription(npub)
 
 	JSONResponse(w, http.StatusOK, "Invoice generated", response)
-	return
 }
 
 func handleHomePage(w http.ResponseWriter, r *http.Request) {
@@ -157,7 +157,7 @@ func handleBitvoraWebhook(w http.ResponseWriter, r *http.Request) {
 
 				if metadata.Npub != "" {
 					npub := metadata.Npub
-					addPubkeyToWhitelist("whitelist.json", npub)
+					setPaidSubscription(npub)
 				} else {
 					fmt.Println("No npub in metadata")
 					return
