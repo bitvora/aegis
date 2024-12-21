@@ -110,6 +110,10 @@ PREMIUM RELAY & BLOSSOM SERVER
 		Path: dbPath,
 	}
 
+	if err := db.Init(); err != nil {
+		panic(err)
+	}
+
 	fs = afero.NewOsFs()
 	fs.MkdirAll(blossomPath, 0755)
 
