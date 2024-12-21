@@ -154,7 +154,7 @@ PREMIUM RELAY & BLOSSOM SERVER
 	mux.HandleFunc("/bitvora_webhook", handleBitvoraWebhook)
 	mux.HandleFunc("/generate_invoice", handleGenerateInvoice)
 	mux.HandleFunc("/poll_payment", handlePollPayment)
-	mux.HandleFunc("/", handleHomePage)
+	mux.HandleFunc("GET /", handleHomePage)
 
 	bl := blossom.New(relay, "https://"+relayUrl)
 	bl.Store = blossom.EventStoreBlobIndexWrapper{Store: lmdb, ServiceURL: bl.ServiceURL}
