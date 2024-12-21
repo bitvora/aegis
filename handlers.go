@@ -163,6 +163,7 @@ func handleBitvoraWebhook(w http.ResponseWriter, r *http.Request) {
 				if metadata.Npub != "" {
 					npub := metadata.Npub
 					setPaidSubscription(npub)
+					loadWhitelist()
 				} else {
 					fmt.Println("No npub in metadata")
 					return
